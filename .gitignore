@@ -1,0 +1,26 @@
+# Local runtime data
+/data/
+mergegraph-mvp/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Secrets and local configuration
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.log
+
+# Dependencies and generated files
+node_modules/
+coverage/
+dist/
+build/
+.next/
+
+# Local fixtures and review outputs
+research/reviews/
+research/incomplete-clones/
+*_fixture/

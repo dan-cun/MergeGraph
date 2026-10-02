@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergegraph.local/schemas/architecture-diagram.schema.json",
+  "title": "MergeGraph Architecture Diagram IR",
+  "description": "Evidence-aware architecture diagram IR used before Archify rendering and canvas projection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "diagramType", "meta", "nodes", "edges"],
+  "properties": {
+    "schemaVersion": { "const": "mergegraph.architecture.v1" },
+    "diagramType": { "const": "architecture" },
+    "meta": { "$ref": "#/$defs/meta" },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "boundaries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/boundary" }
+    },
+    "cards": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/card" }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recommendation" }
+    },
+    "openQuestions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/question" }
+    },
+    "evidenceGaps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/question" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "nonEmpty": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nodeKind": {
+      "enum": ["frontend", "backend", "database", "cloud", "security", "messagebus", "external"]
+    },
+    "edgeVariant": {
+      "enum": ["default", "emphasis", "security", "dashed"]
+    },
+    "qualityProfile": {
+      "enum": ["standard", "showcase"]
+    },
+    "evidenceMode": {
+      "enum": ["web", "local-only", "working-tree"]
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidenceMode"],
+      "properties": {
+        "remoteUrl": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "commitSha": { "type": "string", "pattern": "^[a-fA-F0-9]{40}$" },
+        "evidenceMode": { "$ref": "#/$defs/evidenceMode" },
+        "branch": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "dirty": { "type": "boolean" },
+        "workingTreeHash": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "$ref": "#/$defs/nonEmpty", "maxLength": 200 },
+        "subtitle": { "type": "string", "maxLength": 400 },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "repoSnapshotId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "qualityProfile": { "$ref": "#/$defs/qualityProfile" },
+        "repository": { "$ref": "#/$defs/repository" },
+        "generatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[^\\\\\\u0000-\\u001F].*$" },
+        "line": { "type": "integer", "minimum": 1 },
+        "endLine": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "verification": { "enum": ["commit", "working-tree", "unverified"] }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "$ref": "#/$defs/nodeKind" },
+        "label": { "$ref": "#/$defs/nonEmpty", "maxLength": 160 },
+        "summary": { "type": "string", "maxLength": 240 },
+        "tag": { "type": "string", "maxLength": 100 },
+        "position": { "$ref": "#/$defs/position" },
+        "size": { "$ref": "#/$defs/size" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "target"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "source": { "$ref": "#/$defs/id" },
+        "target": { "$ref": "#/$defs/id" },
+        "label": { "type": "string", "maxLength": 160 },
+        "variant": { "$ref": "#/$defs/edgeVariant" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "nodeIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["region", "security-group"] },
+        "label": { "$ref": "#/$defs/nonEmpty", "maxLength": 180 },
+        "nodeIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "items"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/nonEmpty", "maxLength": 160 },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "tone": { "enum": ["cyan", "emerald", "violet", "amber", "rose", "orange", "slate"] }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "detail"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/nonEmpty", "maxLength": 180 },
+        "detail": { "$ref": "#/$defs/nonEmpty", "maxLength": 1200 },
+        "priority": { "enum": ["low", "medium", "high", "critical"] },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "detail"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "detail": { "$ref": "#/$defs/nonEmpty", "maxLength": 1200 },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        }
+      }
+    }
+  }
+}

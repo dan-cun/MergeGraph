@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergegraph.local/schemas/context-sidecar.schema.json",
+  "title": "MergeGraph Context Sidecar",
+  "type": "object",
+  "required": ["schemaVersion", "assetId", "contentHash", "updatedAt", "context"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "assetId": { "type": "string", "minLength": 1 },
+    "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "context": {
+      "type": "object",
+      "required": ["title", "tags", "notes"],
+      "properties": {
+        "title": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" },
+        "prompt": { "type": "string" },
+        "source": { "type": "string" },
+        "license": { "type": "string" },
+        "project": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "value"],
+        "properties": {
+          "kind": { "type": "string" },
+          "value": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
