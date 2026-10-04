@@ -6,16 +6,16 @@ MergeGraph 是一个本地优先的科研上下文与 AI 资产管理原型。�
 
 ## 当前完成内容
 
-### 本地项目分析
+### 本地项目工作区
 
-- 项目登记：`POST/GET/PATCH /api/projects`
-- 本地路径校验：`realpath`、根目录边界检查、外部符号链接拒绝
-- 只读扫描：不执行仓库脚本、安装命令、构建命令或测试
-- 扫描快照和文件索引：相对路径、语言、MIME、大小、哈希、行数和排除原因
-- 默认排除 Git 元数据、依赖目录、构建缓存、`.env`、证书、私钥和疑似凭据
-- Evidence Pack：只使用相对路径、结构摘要和受预算限制的代码片段
+- 通过本地目录地址创建、切换和刷新工作区：`POST/GET/PATCH /api/workspaces`
+- 首次打开工作区快速返回，后台扫描文件、生成快照和五类图谱；状态可通过 `GET /api/workspaces/:id/status` 查询
+- 文件索引包含相对路径、语言、大小、哈希、行数和扫描摘要：`GET /api/workspaces/:id/files`
+- 工作区监听使用 `fs.watch`，任务执行器产生的变化事件会进入图谱和任务上下文
+- `AGENTS.md` 按目录发现、排序和合并，任务读取有效指令：`GET /api/instructions?workspaceId=...`
+- AI 补丁和 `fs.watch` 外部变更都会记录逐文件变化事件；任务结束后主体流程图重生成并发布 `graph_updated` 事件
 
-### 架构图工作流
+### 五类图谱与 Archify 工作流
 
 ```text
 ProjectImporter
@@ -30,25 +30,18 @@ ProjectImporter
   -> CanvasProjector
 ```
 
-- 本地模式下使用确定性结构图，不发送项目内容
-- 项目明确授权且隐私模式为 `external_ai_opt_in` 时，才调用 OpenAI-compatible `/chat/completions`
-- 服务端校验节点、边、证据路径和行号
-- 生成 HTML/JSON 文档，并把通过校验的节点和关系投影到画布
-- 支持 Archify 风格的 typed IR、证据约束和交付边界；详见 `THIRD_PARTY_NOTICES.md`
+- `main_flow`、`asset_call`、`execution`、`agent_relation`、`deployment_ownership` 五类图谱分别保存节点、边、证据、状态和版本
+- `lib/archify-bridge.mjs` 将五类图谱适配到 Archify 的 `workflow`、`dataflow`、`sequence`、`lifecycle`、`architecture` 类型
+- 图谱生成时直接调用 `lib/archify-renderer-api.mjs` 的纯函数 renderer，输入内存中的 Archify JSON 并返回 SVG/卡片数据；HTML 写入和回执由 MergeGraph 负责，不再依赖 CLI 子进程或 `process.argv`
+- `vendor/archify/` 固定可复现版本，渲染后保存 HTML/SVG、输入哈希、输出哈希和回执
+- 无证据的关系不会被补成虚假连线；没有足够数据时界面显示明确空状态
+- Archify 失败时保留上一份可用图谱元数据；复用范围见 `THIRD_PARTY_NOTICES.md`
 
 ### Vue 工作台
 
-左侧功能栏分为：
+左侧功能栏分为工作区、文件扫描、AI 任务、项目指令、网址与域名和 Provider 设置。中央区域是 SVG 白板，顶部为五类图谱页签，右侧是节点检查器，底部是 AI 编程任务栏。侧栏支持缩进、悬停展开、固定和窄屏布局；检查器打开时五个页签和任务发送按钮仍保持可操作。白板支持鼠标滚轮缩放，缩放中心跟随光标位置；拖拽平移和顶部缩放按钮继续可用。
 
-1. 项目
-2. 扫描
-3. 架构分析
-4. 文件与资产
-5. 画布
-6. 工作流
-7. 设置
-
-侧栏支持缩进状态、光标自动展开、延迟收回、固定、键盘快捷键和窄屏布局。Provider/API Key 在“设置”中全项目共享，API 响应只返回 `hasApiKey`，不会回显完整密钥。
+Provider/API Key 通过 `/api/settings/provider` 全项目共享。页面只显示是否已配置，不回显完整密钥；留空 API Key 保存时会保留已有值。
 
 ### 首轮资产与画布能力
 
@@ -67,7 +60,8 @@ ProjectImporter
 | P2 Vue 工作台与项目扫描 | 已完成首轮 | 项目登记、扫描、隐私开关和左侧栏已可用 |
 | P3 Provider 与架构分析 | 已完成首轮 | 本地确定性分析和授权外部 Provider 已打通 |
 | P4 架构图交付与画布投影 | 已完成首轮 | HTML/JSON 文档、证据校验和画布投影已打通 |
-| P5 MCP/ComfyUI/Seedance | 未开始 | 需要先冻结连接器输入输出 Schema 和权限边界 |
+| P5 工作区重构与 AI 编程 | 已完成首轮 | Vue 工作区、SVG 白板、五类图谱、任务步骤、补丁应用、检查、回滚和文件高亮已接通 |
+| P6 MCP/ComfyUI/Seedance/协作权限 | 后置 | 仅保留扩展接口，待工作区核心流程稳定后接入 |
 
 ## 环境要求
 
@@ -76,16 +70,26 @@ ProjectImporter
 - Node.js 22 或更高版本
 - 现代浏览器
 - 不需要独立 SQLite 服务；服务端使用 Node.js 内置 `node:sqlite`
-- 不需要安装 npm 依赖，当前浏览器使用本地 vendored Vue 3 构建
+- 不需要安装 npm 依赖，当前浏览器使用本地 vendored Vue 3 构建；Archify 运行时已固定在 `vendor/archify/`
 
 已验证的参考环境：Node.js 24.15、npm 11.12、Go 1.27、Docker 29、Python 3.14、pnpm 12。Go、Docker、Python 和 pnpm 只用于参考仓库分析，不是 MVP 启动的必需项。
 
 ## 启动
 
 ```powershell
-cd <PROJECT_ROOT>\MergeGraph_v0.1
+cd <PROJECT_ROOT>\mergegraph-mvp
 npm start
 ```
+
+本轮生产路径验收命令：
+
+```powershell
+node --check server.mjs
+node --check public/app.js
+node --test test/tasks.test.mjs test/graphs.test.mjs test/http-integration.test.mjs
+```
+
+当前结果：任务、图谱和 HTTP 联调共 `9/9` 通过；本地页面已实测工作区加载、五个页签切换、文件索引、任务历史和 Provider 设置入口。工作区创建接口返回初始化状态，扫描和图谱生成在后台完成。
 
 默认监听 `127.0.0.1:4310`。如端口冲突，可以在当前 PowerShell 会话指定：
 
@@ -105,31 +109,32 @@ npm start
 
 ## Provider 配置
 
-进入“设置”，填写 Base URL、模型和 API Key 后保存。普通任务和架构分析共用该 Provider。
-
-外部架构分析还需要同时满足：
-
-- 项目隐私模式为“允许外部 AI”
-- 当前分析请求显式授权
-- Provider Base URL 可访问
-- 如设置 `MERGEGRAPH_ALLOWED_HOSTS`，Provider 主机必须在允许列表中
-
-本机模式不需要外部网络，也不会发送源文件内容。
+在工作台左侧打开“Provider 设置”，填写 Base URL、模型和 API Key 后保存。普通编码任务和图谱分析共用该配置。Base URL 留空时使用本地只读规划，不发送项目内容；填写 OpenAI-compatible 地址后，任务执行器会请求 `/chat/completions` 并只接受结构化计划与文件操作。
 
 ## API 入口
 
 ```text
 GET/PUT /api/settings/provider
-POST/GET/PATCH /api/projects
-POST /api/projects/:id/scans
-GET /api/scans/:scanId
-GET /api/projects/:id/snapshots/:snapshotId/files
-POST /api/projects/:id/analyses
-GET /api/projects/:id/analyses
-GET /api/analyses/:id/documents
-GET /api/architecture-documents/:id/source
-GET /api/architecture-documents/:id/preview
-POST /api/runs
+POST/GET/PATCH /api/workspaces
+GET /api/workspaces/:id/status
+POST /api/workspaces/:id/close
+POST /api/workspaces/:id/scan
+GET /api/workspaces/:id/files
+GET /api/workspaces/:id/file?path=...
+GET /api/graphs?workspaceId=...&type=...
+POST /api/graphs
+GET/PUT /api/graphs/:id
+GET /api/graphs/:id/nodes/:nodeId
+POST /api/tasks
+GET /api/tasks/:id
+GET /api/tasks/:id/steps
+GET /api/tasks/:id/events
+GET /api/tasks/:id/patches
+GET /api/conversations/:id/messages
+POST /api/tasks/:id/start|cancel|rollback
+GET /api/instructions?workspaceId=...
+GET/POST /api/deployments
+POST /api/deployments/discover
 ```
 
 项目和文件 API 只接受 loopback 请求。扫描上限和 Evidence Pack 预算在服务端受控，避免一次性读取整个仓库。
@@ -147,14 +152,13 @@ POST /api/runs
 
 ## 当前限制与后续计划
 
-- 尚未实现项目删除、导出、权限系统和增量扫描
-- Git commit 级证据、完整 last-good/stale 状态和 SVG 导出待补充
-- 当前画布为 MVP 自动布局，不等同于完整生产级无限画布
-- 外部 AI 目前只支持通用 OpenAI-compatible 接口
+- 当前画布为 SVG MVP，支持鼠标滚轮缩放（光标锚点）、拖拽平移、适配视图和位置持久化；后续可替换为 Canvas/WebGL
+- Provider 返回的结构化操作会被路径校验、任务备份和白名单检查包住
+- 多用户、团队权限、远程同步和在线部署执行尚未纳入本轮
 - MCP、ComfyUI、Seedance 连接器尚未实现
-- 分析请求目前同步等待 Provider，尚未提供流式进度
+- 本地 mock Provider 只生成可追踪的只读步骤；真实文件修改需要配置 OpenAI-compatible Provider
 
-详见 `docs/PHASE2-PLAN.md`、`docs/PROJECT-PLAN-PUBLIC.md` 和 `docs/SOURCES.md`。
+总体实施任务见 `docs/总体实施任务.md`；前端盘点和联调记录见 `docs/前端占位与待接通功能.md`、`docs/前后端联调验收.md`。
 
 ## 参考项目
 
